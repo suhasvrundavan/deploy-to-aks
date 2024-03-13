@@ -79,13 +79,13 @@ stages:
               enableTelemetry: true
 
           - task: KubernetesManifest@1
-              inputs:
-                action: 'deploy'
-                connectionType: 'kubernetesServiceConnection'
-                kubernetesServiceConnection: 'aks-service-connection'
-                namespace: 'default'
-                manifests: |
-                  '$(Pipeline.Workspace)/manifests/deployment.yml'
+            inputs:
+              action: 'deploy'
+              connectionType: 'kubernetesServiceConnection'
+              kubernetesServiceConnection: 'aks-service-connection'
+              namespace: 'default'
+              manifests: |
+                '$(Pipeline.Workspace)/manifests/deployment.yml'
                   '$(Pipeline.Workspace)/manifests/service.yml'
-                containers: '$(acrdevurl)/$(imageRepo):$(tag)'
-                imagePullSecrets: '$(acrsecret)'
+              containers: '$(acrdevurl)/$(imageRepo):$(tag)'
+              imagePullSecrets: '$(acrsecret)'
