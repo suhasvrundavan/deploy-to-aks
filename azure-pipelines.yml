@@ -26,7 +26,6 @@ stages:
         Dockerfile: '$(Build.SourcesDirectory)/app/Dockerfile'
         tags: |
           $(tag)
-          latest
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: '$(Pipeline.Workspace)/s/kubernetes'
@@ -36,24 +35,57 @@ stages:
 - stage: deploy
   displayName: deploy to dev
   depends_on: build
+  variables:
+    acrsecret: aksacrauth
+    acrdevurl: 'suhasaksacr.azurecr.io'
+    replicaNo: 3
   jobs:
   - job: deploy
     displayName: deploy to aks
     environment: 'k8sdev.default'
     pool:
       vmImage: ubuntu-latest
-    steps:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        buildType: 'current'
-        artifactName: 'manifests'
-        targetPath: '$(Pipeline.Workspace)/s/kubernetes'
-    - task: KubernetesManifest@1
-      inputs:
-        action: 'deploy'
-        connectionType: 'kubernetesServiceConnection'
-        kubernetesServiceConnection: 'aks-service-connection'
-        namespace: 'default'
-        manifests: |
-         '$(Pipeline.Workspace)/manifests/deployment.yml'
-         '$(Pipeline.Workspace)/manifests/service.yml'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifactName: 'manifests'
+              targetPath: '$(Pipeline.Workspace)/manifests'
+          - task: KubernetesManifest@1
+            inputs:
+              action: 'createSecret'
+              connectionType: 'kubernetesServiceConnection'
+              kubernetesServiceConnection: 'aks-service-connection'
+              namespace: 'default'
+              secretType: 'dockerRegistry'
+              secretName: '$(acrsecret)'
+              dockerRegistryEndpoint: 'aksacrconnection'
+          - task: replacetokens@3
+            displayName: Replace Tokens
+            inputs:
+              rootDirectory: '$(Pipeline.Workspace)/manifests/'
+              targetFiles: 'deployment.yml'
+              encoding: 'auto'
+              writeBOM: true
+              actionOnMissing: 'warn'
+              keepToken: false
+              tokenPrefix: '#'
+              tokenSuffix: '#'
+              useLegacyPattern: false
+              enableTransforms: false
+              enableTelemetry: true
+
+          - task: KubernetesManifest@1
+              inputs:
+                action: 'deploy'
+                connectionType: 'kubernetesServiceConnection'
+                kubernetesServiceConnection: 'aks-service-connection'
+                namespace: 'default'
+                manifests: |
+                  '$(Pipeline.Workspace)/manifests/deployment.yml'
+                  '$(Pipeline.Workspace)/manifests/service.yml'
+                containers: '$(acrdevurl)/$(imageRepo):$(tag)'
+                imagePullSecrets: '$(acrsecret)'
